@@ -69,7 +69,7 @@ export const forgotPasswordService = async (email) => {
     if (!user) return { message: 'If a user with that email exists, a password reset link has been sent.' };
     const resetToken = user.generateForgotPasswordToken();
     await user.save({ validateBeforeSave: false });
-    const resetUrl = `http://localhost:3000/reset-password?token=${resetToken}`;
+    const resetUrl = `https://auto-parts-frontend-sand.vercel.app/reset-password?token=${resetToken}`;
     const emailHtml = `<p>Click <a href="${resetUrl}">this link</a> to reset your password. This link is valid for 10 minutes.</p>`;
     await sendEmail({ email: user.email, subject: 'Password Reset Request - OwnSilent', html: emailHtml });
     return { message: 'If a user with that email exists, a password reset link has been sent.' };
