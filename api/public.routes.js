@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { 
     getAllParts, getPartBySlug, getAllCategoriesPublic, 
-    getAllBrandsPublic, getPublicModelsByBrand 
+    getAllBrandsPublic, getPublicModelsByBrand, getCategoryBySlugPublic  
 } from '../controllers/public/product.controller.js';
 import { getPublicPosts, getPostBySlugPublic } from '../controllers/public/blog.controller.js';
 
@@ -12,6 +12,7 @@ const router = Router();
 router.get('/products', getAllParts);
 router.get('/products/:slug', getPartBySlug);
 router.get('/categories', getAllCategoriesPublic);
+router.get('/categories/:slug', getCategoryBySlugPublic);
 router.get('/brands', getAllBrandsPublic);
 router.get('/models/by-brand/:brandId', getPublicModelsByBrand);
 

@@ -44,3 +44,12 @@ export const getPublicModelsByBrand = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const getCategoryBySlugPublic = async (req, res) => {
+    try {
+        const category = await productService.getCategoryBySlugService(req.params.slug);
+        res.status(200).json(category);
+    } catch (error) {
+        res.status(404).json({ message: error.message });
+    }
+};

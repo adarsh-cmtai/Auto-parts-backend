@@ -73,3 +73,11 @@ export const getPartBySlugService = async (slug) => {
     }
     return part;
 };
+
+export const getCategoryBySlugService = async (slug) => {
+    const category = await Category.findOne({ slug });
+    if (!category) {
+        throw new Error('Category not found');
+    }
+    return category;
+};
