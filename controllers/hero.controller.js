@@ -18,6 +18,15 @@ export const getAllSlidesAdmin = async (req, res) => {
     }
 };
 
+export const updateSlide = async (req, res) => {
+    try {
+        const slide = await heroService.updateSlideService(req.params.id, req.body);
+        res.status(200).json(slide);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
 export const deleteSlide = async (req, res) => {
     try {
         const result = await heroService.deleteSlideService(req.params.id);

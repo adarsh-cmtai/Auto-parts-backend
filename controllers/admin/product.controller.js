@@ -176,3 +176,30 @@ export const deletePart = async (req, res) => {
         res.status(400).json({ message: error.message });
     }
 };
+
+export const getDistinctYears = async (req, res) => {
+    try {
+        const years = await productService.getDistinctYearsService();
+        res.status(200).json(years);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const getBrandsByYear = async (req, res) => {
+    try {
+        const brands = await productService.getBrandsByYearService(req.params.year);
+        res.status(200).json(brands);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};
+
+export const getModelsByYearAndBrand = async (req, res) => {
+    try {
+        const models = await productService.getModelsByYearAndBrandService(req.params.year, req.params.brandId);
+        res.status(200).json(models);
+    } catch (error) {
+        res.status(400).json({ message: error.message });
+    }
+};

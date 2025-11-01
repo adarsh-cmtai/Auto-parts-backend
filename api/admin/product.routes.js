@@ -22,4 +22,8 @@ router.route('/categories/:id').patch(productController.updateCategory).delete(p
 router.route('/parts').post(productController.createPart).get(productController.getAllParts);
 router.route('/parts/:id').get(productController.getPartById).patch(productController.updatePart).delete(productController.deletePart);
 
+router.get('/years', productController.getDistinctYears);
+router.get('/brands-by-year/:year', productController.getBrandsByYear);
+router.get('/models-by-year-brand/:year/:brandId', productController.getModelsByYearAndBrand);
+
 export default router;

@@ -39,7 +39,7 @@ export const deleteCategoryService = async (id) => {
 
 export const createPartService = async (partData) => await Part.create(partData);
 export const getPartByIdService = async (id) => await Part.findById(id).populate(['brand', 'model', 'category']);
-export const updatePartService = async (id, data) => await Part.findByIdAndUpdate(id, data, { new: true });
+export const updatePartService = async (id, data) => await Part.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 export const deletePartService = async (id) => await Part.findByIdAndDelete(id);
 
 export const getAllPartsService = async (options) => {
@@ -80,4 +80,19 @@ export const getCategoryBySlugService = async (slug) => {
         throw new Error('Category not found');
     }
     return category;
+};
+
+export const getDistinctYearsService = async () => {
+    const years = await CarModel.distinct('year');
+    return years.sort((a, b) => b - a);
+};
+
+export const getBrandsByYearService = async (year) => {
+    const models = await CarModel.find({ year }).populate('brand');
+    const uniqueBrands = [...new Map(models.map(m => [m.brand._id.toString(), m.brand])).values()];
+    return uniqueBrands.sort((a, b) => a.name.localeCompare(b.name));
+};
+
+export const getModelsByYearAndBrandService = async (year, brandId) => {
+    return await CarModel.find({ year, brand: brandId }).sort({ name: 1 });
 };

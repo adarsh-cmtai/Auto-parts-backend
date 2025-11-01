@@ -4,21 +4,23 @@ import { adminAuth } from '../middlewares/admin.middleware.js';
 import { 
     createSlide,
     getAllSlidesAdmin,
+    updateSlide,
     deleteSlide,
     getActiveSlidesPublic
 } from '../controllers/hero.controller.js';
 
 const router = Router();
 
-// Public route
 router.get('/public', getActiveSlidesPublic);
 
-// Admin routes
 router.use(auth, adminAuth);
+
 router.route('/')
     .post(createSlide)
     .get(getAllSlidesAdmin);
     
-router.delete('/:id', deleteSlide);
+router.route('/:id')
+    .patch(updateSlide)
+    .delete(deleteSlide);
 
 export default router;
