@@ -21,5 +21,5 @@ export const deleteSlideService = async (id) => {
 };
 
 export const getActiveSlidesPublicService = async () => {
-    return await HeroSlide.find({ isActive: true }).sort({ createdAt: -1 });
+    return await HeroSlide.find({ isActive: true }).sort({ createdAt: 1 });
 };
