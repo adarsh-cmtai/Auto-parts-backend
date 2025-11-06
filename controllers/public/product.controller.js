@@ -2,8 +2,17 @@ import * as productService from '../../services/product.service.js';
 
 export const getAllParts = async (req, res) => {
     try {
-        const result = await productService.getAllPartsService(req.query);
+        const result = await productService.getAllPartsService(req.query, 'public');
         res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+export const getAvailableFilters = async (req, res) => {
+    try {
+        const filters = await productService.getAvailableFiltersService();
+        res.status(200).json(filters);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

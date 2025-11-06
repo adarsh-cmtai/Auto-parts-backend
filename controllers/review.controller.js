@@ -22,8 +22,14 @@ export const createReview = async (req, res) => {
 };
 
 export const getReviewsForProduct = async (req, res) => {
+    const { partId } = req.params;
+
+    if (partId.startsWith('zoho_')) {
+        return res.status(200).json([]);
+    }
+
     try {
-        const reviews = await reviewService.getReviewsForProductService(req.params.partId);
+        const reviews = await reviewService.getReviewsForProductService(partId);
         res.status(200).json(reviews);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };

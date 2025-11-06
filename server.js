@@ -17,6 +17,8 @@ import adminDashboardRouter from './api/admin/dashboard.routes.js';
 import enquiryRouter from './api/enquiry.routes.js';
 import heroRouter from './api/hero.routes.js';
 import reviewRouter from './api/review.routes.js';
+import zohoRouter from './api/zoho.routes.js';
+// import axios from "axios";
 
 dotenv.config();
 
@@ -39,7 +41,7 @@ app.use(express.urlencoded({ extended: true, limit: '16kb' }));
 app.use(cookieParser());
 
 app.get('/', (req, res) => {
-    res.status(200).json({ message: "Welcome to OwnSilent API" });
+  res.status(200).json({ message: "Welcome to OwnSilent API" });
 });
 
 
@@ -57,22 +59,23 @@ app.use('/api/v1', publicProductRouter);
 app.use('/api/v1/enquiries', enquiryRouter);
 app.use('/api/v1/hero-slides', heroRouter);
 app.use('/api/v1/reviews', reviewRouter);
+app.use('/api/v1/zoho', zohoRouter);
 
 
 const startServer = async () => {
-    try {
-        await connectDB();
-        
-        const port = process.env.PORT || 8000;
+  try {
+    await connectDB();
 
-        app.listen(port, () => {
-            console.log(`🚀 Server is running at http://localhost:${port}`);
-        });
+    const port = process.env.PORT || 8000;
 
-    } catch (error) {
-        console.error("Failed to start server:", error);
-        process.exit(1);
-    }
+    app.listen(port, () => {
+      console.log(`🚀 Server is running at http://localhost:${port}`);
+    });
+
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  }
 };
 
 startServer();

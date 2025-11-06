@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { 
     getAllParts, getPartBySlug, getAllCategoriesPublic, 
-    getAllBrandsPublic, getPublicModelsByBrand, getCategoryBySlugPublic  
+    getAllBrandsPublic, getPublicModelsByBrand, getCategoryBySlugPublic,
+    getAvailableFilters
 } from '../controllers/public/product.controller.js';
 import { getPublicPosts, getPostBySlugPublic } from '../controllers/public/blog.controller.js';
 
@@ -10,6 +11,7 @@ import { getPublicNews, getNewsBySlugPublic } from '../controllers/public/news.c
 const router = Router();
 
 router.get('/products', getAllParts);
+router.get('/products/filters', getAvailableFilters);
 router.get('/products/:slug', getPartBySlug);
 router.get('/categories', getAllCategoriesPublic);
 router.get('/categories/:slug', getCategoryBySlugPublic);

@@ -1,5 +1,14 @@
 import * as productService from '../../services/product.service.js';
 
+export const getAllParts = async (req, res) => {
+    try {
+        const result = await productService.getAllPartsService(req.query, 'admin');
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 export const generateUploadUrl = async (req, res) => {
     try {
         const { folder, contentType } = req.body;
@@ -136,15 +145,6 @@ export const createPart = async (req, res) => {
         res.status(201).json(part);
     } catch (error) {
         res.status(400).json({ message: error.message });
-    }
-};
-
-export const getAllParts = async (req, res) => {
-    try {
-        const result = await productService.getAllPartsService(req.query);
-        res.status(200).json(result);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
     }
 };
 
