@@ -1,19 +1,17 @@
 import mongoose from 'mongoose';
 
-const specificationSchema = new mongoose.Schema({
-    key: { type: String, required: true },
-    value: { type: String, required: true },
-});
-
 const descriptionSchema = new mongoose.Schema({
     mainText: { type: String, required: true },
     highlights: { type: [String], default: [] },
-    specifications: [specificationSchema],
+    specifications: [{
+        key: { type: String, required: true },
+        value: { type: String, required: true },
+    }],
 });
 
+
 const heroSlideSchema = new mongoose.Schema({
-    beforeImage: { type: String, required: true },
-    afterImage: { type: String, required: true },
+    image: { type: String, required: true },
     title: { type: String, required: true },
     subtitle: { type: String, required: true },
     description: { type: mongoose.Schema.Types.Mixed, required: true },
