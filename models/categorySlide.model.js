@@ -16,7 +16,7 @@ const categorySlideSchema = new mongoose.Schema({
         required: true,
         unique: true, 
     },
-    image: { type: String, required: true },
+    images: { type: [String], required: true },
     title: { type: String, required: true },
     subtitle: { type: String },
     description: { type: descriptionSchema },
