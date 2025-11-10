@@ -45,7 +45,9 @@ export const getZohoProductImage = async (req, res) => {
         await pipeline(response.data, res);
 
     } catch (error) {
-        console.error('Error proxying Zoho image:', error.response?.data || error.message);
-        res.status(500).json({ message: 'Failed to load image from Zoho.' });
+        console.error('Error proxying Zoho image:', error.message);
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Failed to load image from Zoho.' });
+        }
     }
 };

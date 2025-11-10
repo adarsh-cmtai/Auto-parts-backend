@@ -3,40 +3,38 @@ import { CarModel } from '../models/carModel.model.js';
 import { Category } from '../models/category.model.js';
 import { Part } from '../models/part.model.js';
 import { getSignedUploadUrl } from '../utils/s3.js';
-import { getZohoItemsService, getZohoItemByIdService } from './zoho.service.js';
+import { getZohoItemsService, getZohoItemByIdService, getAllZohoItemsForFiltering } from './zoho.service.js';
 
-const createCache = () => ({
-    allParts: [],
-    zohoPage: 1,
-    zohoHasMore: true,
-    lastUpdated: 0,
-});
+let adminProductCache = { allParts: [], zohoPage: 1, zohoHasMore: true, lastUpdated: 0 };
+let publicProductCache = { allParts: [], zohoPage: 1, zohoHasMore: true, lastUpdated: 0 };
+let filterCache = { data: null, lastUpdated: 0, isRefreshing: false };
 
-let adminProductCache = createCache();
-let publicProductCache = createCache();
 const CACHE_DURATION = 10 * 60 * 1000;
 
 const transformMongoPart = (part) => {
-    return { ...part.toObject(), _id: part._id.toString(), source: 'MongoDB' };
+    return { ...part.toObject({ virtuals: true }), _id: part._id.toString(), source: 'MongoDB' };
 };
 
 const refreshCache = async (cache) => {
     console.log(`Refreshing product cache for ${cache === adminProductCache ? 'Admin' : 'Public'}...`);
-    const mongoPartsPromise = Part.find({})
-        .populate('brand', 'name')
-        .populate('model', 'name year')
-        .populate('category', 'name')
-        .sort({ createdAt: -1 });
+    try {
+        const mongoPartsPromise = Part.find({})
+            .populate('brand', 'name')
+            .populate('model', 'name year')
+            .populate('category', 'name slug')
+            .sort({ createdAt: -1 });
 
-    const zohoFirstPagePromise = getZohoItemsService(1);
+        const zohoFirstPagePromise = getZohoItemsService(1);
 
-    const [mongoParts, zohoResult] = await Promise.all([mongoPartsPromise, zohoFirstPagePromise]);
+        const [mongoParts, zohoResult] = await Promise.all([mongoPartsPromise, zohoFirstPagePromise]);
 
-    cache.allParts = [...mongoParts.map(transformMongoPart), ...zohoResult.items];
-    cache.zohoPage = 1;
-    cache.zohoHasMore = zohoResult.hasMore;
-    cache.lastUpdated = Date.now();
-    console.log(`Cache refreshed. Total items: ${cache.allParts.length}. Zoho has more: ${cache.zohoHasMore}`);
+        cache.allParts = [...mongoParts.map(transformMongoPart), ...zohoResult.items];
+        cache.zohoPage = 1;
+        cache.zohoHasMore = zohoResult.hasMore;
+        cache.lastUpdated = Date.now();
+    } catch (error) {
+        console.error("Error during cache refresh:", error);
+    }
 };
 
 const getCacheForContext = (context) => {
@@ -55,7 +53,6 @@ const ensureCacheIsReady = async (page, limit, source, context) => {
     const requiredItemsCount = page * limit;
     
     if (requiredItemsCount > cache.allParts.length && cache.zohoHasMore && source !== 'mongodb') {
-        console.log(`Cache miss for page ${page}. Fetching more from Zoho.`);
         while (requiredItemsCount > cache.allParts.length && cache.zohoHasMore) {
             const nextPageToFetch = cache.zohoPage + 1;
             const zohoNextResult = await getZohoItemsService(nextPageToFetch);
@@ -88,7 +85,7 @@ export const getAllPartsService = async (options, context = 'public') => {
         filteredParts = filteredParts.filter(p => p.brand?._id?.toString() === brand || p.brand?.name === brand);
     }
     if (category) {
-        filteredParts = filteredParts.filter(p => p.category?._id?.toString() === category || p.category?.name === category);
+        filteredParts = filteredParts.filter(p => p.category?._id?.toString() === category || p.category?.name === category || p.category?.slug === category);
     }
     if (model) {
         filteredParts = filteredParts.filter(p => p.model?._id?.toString() === model || p.model?.name === model);
@@ -96,10 +93,11 @@ export const getAllPartsService = async (options, context = 'public') => {
     
     filteredParts.sort((a, b) => new Date(b.createdAt || b.created_time || 0) - new Date(a.createdAt || a.created_time || 0));
 
-    let totalParts = filteredParts.length;
-    if (cache.zohoHasMore && (source === '' || source === 'zoho')) {
-        totalParts += 1; 
-    }
+    const totalParts = filteredParts.length;
+    
+    const finalTotalCount = (cache.zohoHasMore && (source === '' || source === 'zoho') && !search && !brand && !category && !model)
+        ? totalParts + 1 
+        : totalParts;
 
     const startIndex = (page - 1) * limit;
     const paginatedParts = filteredParts.slice(startIndex, startIndex + parseInt(limit));
@@ -108,32 +106,33 @@ export const getAllPartsService = async (options, context = 'public') => {
         parts: paginatedParts,
         totalPages: Math.ceil(totalParts / limit),
         currentPage: parseInt(page),
-        totalCount: totalParts
+        totalCount: finalTotalCount
     };
 };
 
-
-export const getAvailableFiltersService = async () => {
-    await ensureCacheIsReady(1, 200, '', 'public'); 
-
-    const allParts = publicProductCache.allParts;
-
+const generateFiltersFromParts = (allParts) => {
     const categories = new Map();
     const brands = new Map();
     const models = new Map();
 
     allParts.forEach(part => {
-        if (part.category && part.category.name && part.category.name !== 'Uncategorized') {
-            const key = part.category._id || part.category.name;
-            if (!categories.has(key)) categories.set(key, part.category);
+        if (part.category?.name && part.category.name !== 'Uncategorized') {
+            const key = part.category._id?.toString() || part.category.name;
+            if (!categories.has(key)) {
+                categories.set(key, { _id: key, name: part.category.name, slug: part.category.slug });
+            }
         }
-        if (part.brand && part.brand.name && part.brand.name !== 'Unknown') {
-            const key = part.brand._id || part.brand.name;
-            if(!brands.has(key)) brands.set(key, part.brand);
+        if (part.brand?.name && part.brand.name !== 'Unknown') {
+            const key = part.brand._id?.toString() || part.brand.name;
+            if (!brands.has(key)) {
+                brands.set(key, { _id: key, name: part.brand.name });
+            }
         }
-        if (part.model && part.model.name && part.model.name !== 'Unknown') {
-            const key = part.model._id || part.model.name;
-            if(!models.has(key)) models.set(key, part.model);
+        if (part.model?.name && part.model.name !== 'Unknown') {
+            const key = `${part.model.name}-${part.model.year}`;
+            if (!models.has(key)) {
+                models.set(key, { _id: part.model._id?.toString() || key, name: part.model.name, year: part.model.year });
+            }
         }
     });
 
@@ -142,6 +141,60 @@ export const getAvailableFiltersService = async () => {
         brands: Array.from(brands.values()).sort((a, b) => a.name.localeCompare(b.name)),
         models: Array.from(models.values()).sort((a, b) => a.name.localeCompare(b.name)),
     };
+};
+
+const refreshFilterCache = async () => {
+    if (filterCache.isRefreshing) {
+        console.log('Filter cache refresh already in progress. Skipping.');
+        return;
+    }
+
+    filterCache.isRefreshing = true;
+    console.log('Starting background refresh of filter cache...');
+
+    try {
+        const mongoPartsPromise = Part.find({})
+            .select('category brand model')
+            .populate('category', 'name slug')
+            .populate('brand', 'name')
+            .populate('model', 'name year');
+    
+        const zohoPartsPromise = getAllZohoItemsForFiltering();
+    
+        const [mongoParts, zohoParts] = await Promise.all([mongoPartsPromise, zohoPartsPromise]);
+        
+        const allParts = [...mongoParts, ...zohoParts];
+        
+        filterCache.data = generateFiltersFromParts(allParts);
+        filterCache.lastUpdated = Date.now();
+        console.log(`Filter cache refresh completed. Found ${filterCache.data.categories.length} categories, ${filterCache.data.brands.length} brands.`);
+    } catch (error) {
+        console.error('Failed to refresh filter cache:', error);
+    } finally {
+        filterCache.isRefreshing = false;
+    }
+};
+
+export const getAvailableFiltersService = async () => {
+    const isCacheStale = Date.now() - filterCache.lastUpdated > CACHE_DURATION;
+
+    if (!filterCache.data) {
+        if (!filterCache.isRefreshing) {
+             console.log("Filter cache is empty. Triggering background refresh.");
+             refreshFilterCache();
+        }
+        return { categories: [], brands: [], models: [] };
+    } 
+    
+    if (isCacheStale && !filterCache.isRefreshing) {
+        refreshFilterCache();
+    }
+    
+    return filterCache.data;
+};
+
+export const triggerFilterCacheRefresh = () => {
+    refreshFilterCache();
 };
 
 
@@ -154,12 +207,14 @@ export const createPartService = async (partData) => {
     const newPart = await Part.create(partData);
     await refreshCache(adminProductCache);
     await refreshCache(publicProductCache);
+    triggerFilterCacheRefresh();
     return newPart;
 };
 export const updatePartService = async (id, data) => {
     const updatedPart = await Part.findByIdAndUpdate(id, data, { new: true, runValidators: true });
     await refreshCache(adminProductCache);
     await refreshCache(publicProductCache);
+    triggerFilterCacheRefresh();
     return updatedPart;
 };
 
@@ -167,6 +222,7 @@ export const deletePartService = async (id) => {
     await Part.findByIdAndDelete(id);
     await refreshCache(adminProductCache);
     await refreshCache(publicProductCache);
+    triggerFilterCacheRefresh();
 };
 
 export const getPartBySlugService = async (slug) => {

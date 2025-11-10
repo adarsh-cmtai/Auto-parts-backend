@@ -1,5 +1,7 @@
 import { zohoApi } from '../utils/zoho.js';
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 const transformZohoItemToPart = (item) => {
     const findCustomField = (key) => {
         if (!item.custom_fields || !Array.isArray(item.custom_fields)) return null;
@@ -52,6 +54,45 @@ export const getZohoItemsService = async (page = 1) => {
     } catch (error) {
         console.error(`Error fetching page ${page} from Zoho:`, error.response?.data || error.message);
         return { items: [], hasMore: false };
+    }
+};
+
+export const getAllZohoItemsForFiltering = async () => {
+    let allItems = [];
+    let page = 1;
+    let hasMorePages = true;
+    console.log('Starting to fetch all Zoho items for filter generation...');
+
+    try {
+        while (hasMorePages) {
+            console.log(`Fetching filter data from Zoho page ${page}...`);
+            const response = await zohoApi.get('/items', {
+                params: {
+                    page: page,
+                    per_page: 200,
+                }
+            });
+
+            if (response.data && response.data.items) {
+                allItems = allItems.concat(response.data.items);
+                
+                if (response.data.page_context && response.data.page_context.has_more_page) {
+                    page++;
+                    await sleep(200);
+                } else {
+                    hasMorePages = false;
+                }
+            } else {
+                hasMorePages = false;
+            }
+        }
+        
+        console.log(`Finished fetching. Total Zoho items scanned for filters: ${allItems.length}`);
+        return allItems.map(transformZohoItemToPart);
+
+    } catch (error) {
+        console.error('Error fetching all items from Zoho for filtering:', error.response?.data || error.message);
+        return [];
     }
 };
 
