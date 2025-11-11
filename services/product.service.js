@@ -16,18 +16,15 @@ const transformMongoPart = (part) => {
 };
 
 const refreshCache = async (cache) => {
-    console.log(`Refreshing product cache for ${cache === adminProductCache ? 'Admin' : 'Public'}...`);
     try {
         const mongoPartsPromise = Part.find({})
-            .populate('brand', 'name')
-            .populate('model', 'name year')
+            .populate('brand', 'name logo')
+            .populate('model', 'name')
             .populate('category', 'name slug')
             .sort({ createdAt: -1 });
 
         const zohoFirstPagePromise = getZohoItemsService(1);
-
         const [mongoParts, zohoResult] = await Promise.all([mongoPartsPromise, zohoFirstPagePromise]);
-
         cache.allParts = [...mongoParts.map(transformMongoPart), ...zohoResult.items];
         cache.zohoPage = 1;
         cache.zohoHasMore = zohoResult.hasMore;
@@ -37,9 +34,7 @@ const refreshCache = async (cache) => {
     }
 };
 
-const getCacheForContext = (context) => {
-    return context === 'admin' ? adminProductCache : publicProductCache;
-}
+const getCacheForContext = (context) => (context === 'admin' ? adminProductCache : publicProductCache);
 
 const ensureCacheIsReady = async (page, limit, source, context) => {
     const cache = getCacheForContext(context);
@@ -49,17 +44,13 @@ const ensureCacheIsReady = async (page, limit, source, context) => {
     if (isCacheInvalid || isCacheEmpty) {
         await refreshCache(cache);
     }
-
-    const requiredItemsCount = page * limit;
     
+    const requiredItemsCount = page * limit;
     if (requiredItemsCount > cache.allParts.length && cache.zohoHasMore && source !== 'mongodb') {
         while (requiredItemsCount > cache.allParts.length && cache.zohoHasMore) {
             const nextPageToFetch = cache.zohoPage + 1;
             const zohoNextResult = await getZohoItemsService(nextPageToFetch);
-            
-            if (zohoNextResult.items.length > 0) {
-                cache.allParts.push(...zohoNextResult.items);
-            }
+            if (zohoNextResult.items.length > 0) cache.allParts.push(...zohoNextResult.items);
             cache.zohoPage = nextPageToFetch;
             cache.zohoHasMore = zohoNextResult.hasMore;
         }
@@ -69,73 +60,42 @@ const ensureCacheIsReady = async (page, limit, source, context) => {
 
 export const getAllPartsService = async (options, context = 'public') => {
     const { page = 1, limit = 10, search = '', source = '', brand, category, model } = options;
-    
     await ensureCacheIsReady(parseInt(page), parseInt(limit), source, context);
-    
     const cache = getCacheForContext(context);
     let filteredParts = cache.allParts;
 
-    if (source) {
-        filteredParts = filteredParts.filter(p => (p.source || 'MongoDB').toLowerCase() === source.toLowerCase());
-    }
-    if (search) {
-        filteredParts = filteredParts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
-    }
-    if (brand) {
-        filteredParts = filteredParts.filter(p => p.brand?._id?.toString() === brand || p.brand?.name === brand);
-    }
-    if (category) {
-        filteredParts = filteredParts.filter(p => p.category?._id?.toString() === category || p.category?.name === category || p.category?.slug === category);
-    }
-    if (model) {
-        filteredParts = filteredParts.filter(p => p.model?._id?.toString() === model || p.model?.name === model);
-    }
+    if (source) filteredParts = filteredParts.filter(p => (p.source || 'MongoDB').toLowerCase() === source.toLowerCase());
+    if (search) filteredParts = filteredParts.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+    if (brand) filteredParts = filteredParts.filter(p => p.brand?._id?.toString() === brand || p.brand?.name === brand);
+    if (category) filteredParts = filteredParts.filter(p => p.category?._id?.toString() === category || p.category?.name === category || p.category?.slug === category);
+    if (model) filteredParts = filteredParts.filter(p => p.model?._id?.toString() === model || p.model?.name === model);
     
     filteredParts.sort((a, b) => new Date(b.createdAt || b.created_time || 0) - new Date(a.createdAt || a.created_time || 0));
 
     const totalParts = filteredParts.length;
-    
-    const finalTotalCount = (cache.zohoHasMore && (source === '' || source === 'zoho') && !search && !brand && !category && !model)
-        ? totalParts + 1 
-        : totalParts;
-
+    const finalTotalCount = (cache.zohoHasMore && (source === '' || source === 'zoho') && !search && !brand && !category && !model) ? totalParts + 1 : totalParts;
     const startIndex = (page - 1) * limit;
     const paginatedParts = filteredParts.slice(startIndex, startIndex + parseInt(limit));
     
-    return {
-        parts: paginatedParts,
-        totalPages: Math.ceil(totalParts / limit),
-        currentPage: parseInt(page),
-        totalCount: finalTotalCount
-    };
+    return { parts: paginatedParts, totalPages: Math.ceil(totalParts / limit), currentPage: parseInt(page), totalCount: finalTotalCount };
 };
 
-const generateFiltersFromParts = (allParts) => {
-    const categories = new Map();
-    const brands = new Map();
-    const models = new Map();
-
-    allParts.forEach(part => {
+const generateFiltersFromParts = (mongoParts, zohoParts) => {
+    const categories = new Map(), brands = new Map(), models = new Map();
+    [...mongoParts, ...zohoParts].forEach(part => {
         if (part.category?.name && part.category.name !== 'Uncategorized') {
             const key = part.category._id?.toString() || part.category.name;
-            if (!categories.has(key)) {
-                categories.set(key, { _id: key, name: part.category.name, slug: part.category.slug });
-            }
+            if (!categories.has(key)) categories.set(key, { _id: key, name: part.category.name, slug: part.category.slug });
         }
         if (part.brand?.name && part.brand.name !== 'Unknown') {
             const key = part.brand._id?.toString() || part.brand.name;
-            if (!brands.has(key)) {
-                brands.set(key, { _id: key, name: part.brand.name });
-            }
+            if(!brands.has(key)) brands.set(key, { _id: key, name: part.brand.name });
         }
         if (part.model?.name && part.model.name !== 'Unknown') {
-            const key = `${part.model.name}-${part.model.year}`;
-            if (!models.has(key)) {
-                models.set(key, { _id: part.model._id?.toString() || key, name: part.model.name, year: part.model.year });
-            }
+            const key = part.model._id?.toString() || part.model.name;
+            if(!models.has(key)) models.set(key, { _id: key, name: part.model.name });
         }
     });
-
     return {
         categories: Array.from(categories.values()).sort((a, b) => a.name.localeCompare(b.name)),
         brands: Array.from(brands.values()).sort((a, b) => a.name.localeCompare(b.name)),
@@ -144,28 +104,14 @@ const generateFiltersFromParts = (allParts) => {
 };
 
 const refreshFilterCache = async () => {
-    if (filterCache.isRefreshing) {
-        console.log('Filter cache refresh already in progress. Skipping.');
-        return;
-    }
-
+    if (filterCache.isRefreshing) return;
     filterCache.isRefreshing = true;
     console.log('Starting background refresh of filter cache...');
-
     try {
-        const mongoPartsPromise = Part.find({})
-            .select('category brand model')
-            .populate('category', 'name slug')
-            .populate('brand', 'name')
-            .populate('model', 'name year');
-    
+        const mongoPartsPromise = Part.find({}).select('category brand model').populate('category', 'name slug').populate('brand', 'name').populate('model', 'name');
         const zohoPartsPromise = getAllZohoItemsForFiltering();
-    
         const [mongoParts, zohoParts] = await Promise.all([mongoPartsPromise, zohoPartsPromise]);
-        
-        const allParts = [...mongoParts, ...zohoParts];
-        
-        filterCache.data = generateFiltersFromParts(allParts);
+        filterCache.data = generateFiltersFromParts(mongoParts, zohoParts);
         filterCache.lastUpdated = Date.now();
         console.log(`Filter cache refresh completed. Found ${filterCache.data.categories.length} categories, ${filterCache.data.brands.length} brands.`);
     } catch (error) {
@@ -177,7 +123,6 @@ const refreshFilterCache = async () => {
 
 export const getAvailableFiltersService = async () => {
     const isCacheStale = Date.now() - filterCache.lastUpdated > CACHE_DURATION;
-
     if (!filterCache.data) {
         if (!filterCache.isRefreshing) {
              console.log("Filter cache is empty. Triggering background refresh.");
@@ -185,18 +130,11 @@ export const getAvailableFiltersService = async () => {
         }
         return { categories: [], brands: [], models: [] };
     } 
-    
-    if (isCacheStale && !filterCache.isRefreshing) {
-        refreshFilterCache();
-    }
-    
+    if (isCacheStale && !filterCache.isRefreshing) refreshFilterCache();
     return filterCache.data;
 };
 
-export const triggerFilterCacheRefresh = () => {
-    refreshFilterCache();
-};
-
+export const triggerFilterCacheRefresh = () => { refreshFilterCache(); };
 
 export const generateUploadUrlService = async (folder, contentType) => {
     if (!folder || !contentType) throw new Error("Folder and content type are required");
@@ -205,31 +143,22 @@ export const generateUploadUrlService = async (folder, contentType) => {
 
 export const createPartService = async (partData) => {
     const newPart = await Part.create(partData);
-    await refreshCache(adminProductCache);
-    await refreshCache(publicProductCache);
-    triggerFilterCacheRefresh();
+    await refreshCache(adminProductCache); await refreshCache(publicProductCache); triggerFilterCacheRefresh();
     return newPart;
 };
 export const updatePartService = async (id, data) => {
     const updatedPart = await Part.findByIdAndUpdate(id, data, { new: true, runValidators: true });
-    await refreshCache(adminProductCache);
-    await refreshCache(publicProductCache);
-    triggerFilterCacheRefresh();
+    await refreshCache(adminProductCache); await refreshCache(publicProductCache); triggerFilterCacheRefresh();
     return updatedPart;
 };
-
 export const deletePartService = async (id) => {
     await Part.findByIdAndDelete(id);
-    await refreshCache(adminProductCache);
-    await refreshCache(publicProductCache);
-    triggerFilterCacheRefresh();
+    await refreshCache(adminProductCache); await refreshCache(publicProductCache); triggerFilterCacheRefresh();
 };
-
 export const getPartBySlugService = async (slug) => {
     if (slug.startsWith('zoho-')) {
         await ensureCacheIsReady(1, 1, '', 'public');
         const partFromCache = publicProductCache.allParts.find(p => p.slug === slug);
-        
         if (partFromCache && partFromCache._id) {
             const zohoItemId = partFromCache._id.replace('zoho_', '');
             return await getZohoItemByIdService(zohoItemId);
@@ -237,11 +166,8 @@ export const getPartBySlugService = async (slug) => {
             throw new Error('Zoho item not found in cache for this slug.');
         }
     }
-
-    const part = await Part.findOne({ slug }).populate('brand', 'name').populate('model', 'name year').populate('category', 'name');
-    if (!part) {
-        throw new Error('Part not found');
-    }
+    const part = await Part.findOne({ slug }).populate('brand', 'name logo').populate('model', 'name').populate('category', 'name');
+    if (!part) throw new Error('Part not found');
     return part;
 };
 
@@ -265,7 +191,7 @@ export const deleteModelService = async (id) => {
 };
 export const createCategoryService = async (catData) => await Category.create(catData);
 export const getAllCategoriesService = async () => await Category.find().sort({ name: 1 });
-export const updateCategoryService = async (id, data) => await Part.findByIdAndUpdate(id, data, { new: true });
+export const updateCategoryService = async (id, data) => await Category.findByIdAndUpdate(id, data, { new: true });
 export const deleteCategoryService = async (id) => {
     if (await Part.countDocuments({ category: id }) > 0) throw new Error('Cannot delete category with associated parts.');
     return await Category.findByIdAndDelete(id);

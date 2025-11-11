@@ -4,7 +4,7 @@ import slugify from 'slugify';
 const brandSchema = new mongoose.Schema({
     name: { type: String, required: true, unique: true, trim: true },
     slug: { type: String, unique: true },
-    logo: { type: String, required: true },
+    logo: { type: String },
 }, { timestamps: true });
 
 brandSchema.pre('save', function(next) {
