@@ -35,3 +35,12 @@ export const getSlideByCategorySlug = async (req, res) => {
         res.status(404).json({ message: error.message });
     }
 };
+
+export const getAllPublicSlides = async (req, res) => {
+    try {
+        const slides = await slideService.getAllPublicSlidesService();
+        res.status(200).json(slides);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};

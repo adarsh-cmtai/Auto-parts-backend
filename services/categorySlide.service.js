@@ -7,11 +7,11 @@ export const createOrUpdateSlideService = async (slideData) => {
         { category: categoryId },
         { ...data, category: categoryId },
         { new: true, upsert: true, runValidators: true }
-    ).populate('category', 'name');
+    ).populate('category', 'name slug');
 };
 
 export const getAllSlidesService = async () => {
-    return await CategorySlide.find().populate('category', 'name').sort({ createdAt: -1 });
+    return await CategorySlide.find().populate('category', 'name slug').sort({ createdAt: -1 });
 };
 
 export const deleteSlideService = async (id) => {
@@ -29,5 +29,9 @@ export const getSlideByCategoryIdService = async (categoryId) => {
 export const getSlideByCategorySlugService = async (slug) => {
     const category = await Category.findOne({ slug });
     if (!category) return null;
-    return await getSlideByCategoryIdService(category._id);
+    return await CategorySlide.findOne({ category: category._id, isActive: true }).populate('category', 'name slug');
+};
+
+export const getAllPublicSlidesService = async () => {
+    return await CategorySlide.find({ isActive: true }).populate('category', 'name slug').sort({ createdAt: -1 });
 };

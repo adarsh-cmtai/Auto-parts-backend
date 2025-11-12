@@ -5,11 +5,13 @@ import {
     createOrUpdateSlide,
     getAllSlides,
     deleteSlide,
-    getSlideByCategorySlug
+    getSlideByCategorySlug,
+     getAllPublicSlides,
 } from '../controllers/categorySlide.controller.js';
 
 const router = Router();
 
+router.get('/public/all', getAllPublicSlides);
 router.get('/public/:slug', getSlideByCategorySlug);
 
 router.use(auth, adminAuth);
