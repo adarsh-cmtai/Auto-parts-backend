@@ -20,6 +20,7 @@ import reviewRouter from './api/review.routes.js';
 import zohoRouter from './api/zoho.routes.js';
 import { triggerFilterCacheRefresh } from './services/product.service.js';
 import categorySlideRouter from './api/categorySlide.routes.js';
+import adminCollectionRouter from './api/admin/collection.routes.js';
 
 dotenv.config();
 
@@ -30,7 +31,8 @@ app.use(
     origin: [
       "https://auto-parts-frontend-sand.vercel.app",
       "http://localhost:5173",
-      "http://localhost:3000"
+      "http://localhost:3000",
+      "https://www.ownsilentuae.com"
     ],
     credentials: true,
   })
@@ -62,6 +64,7 @@ app.use('/api/v1/hero-slides', heroRouter);
 app.use('/api/v1/reviews', reviewRouter);
 app.use('/api/v1/zoho', zohoRouter);
 app.use('/api/v1/category-slides', categorySlideRouter);
+app.use('/api/v1/admin/collections', adminCollectionRouter);
 
 
 const startServer = async () => {
